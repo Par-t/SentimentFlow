@@ -152,6 +152,9 @@ data/
 *.h5
 *.hdf5
 
+# But keep sample data for development
+!data/sample_sentiment_data.csv
+
 # Model files
 models/
 *.model
