@@ -11,7 +11,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.append(str(PROJECT_ROOT / 'config'))
 
-from config import S3_BUCKET_NAME, AWS_REGION
+from config.config import S3_BUCKET_NAME, AWS_REGION
 
 class DataIngestion:
     def __init__(self, bucket_name=None):
