@@ -54,12 +54,21 @@ def test_end_to_end_pipeline():
     
     print("✅ ETL pipeline successful")
     
-    # Step 3: Verify results
-    print("\n3. Verifying results...")
+    # Step 3: Feature Extraction
+    print("\n3. Testing feature extraction...")
+    feature_matrix, feature_names, extractor = etl.feature_extraction(processed_data)
+    
+    print("✅ Feature extraction successful")
+    
+    # Step 4: Verify results
+    print("\n4. Verifying results...")
     print(f"Original data shape: {raw_data.shape}")
     print(f"Processed data shape: {processed_data.shape}")
+    print(f"Feature matrix shape: {feature_matrix.shape}")
+    print(f"Number of features: {len(feature_names)}")
     print("\nSample processed data:")
     print(processed_data[['text', 'cleaned_text', 'sentiment']].head())
+    print(f"\nSample features: {feature_names[:10]}")
     
     print("\n✅ End-to-end pipeline test completed successfully!")
     return True

@@ -18,6 +18,7 @@ from datetime import datetime
 
 from data_ingestion import DataIngestion
 from config import S3_BUCKET_NAME, AWS_REGION, DATA_DIR
+from feature_extraction import feature_extraction, FeatureExtractor
 
 class ETLPipeline:
     def __init__(self, bucket_name=None):
@@ -80,6 +81,53 @@ class ETLPipeline:
         print(f"Processed {len(df)} samples")
         return df
     
+    def feature_extraction(self, df, config=None):
+        """
+        Extract features from processed text data
+        
+        Args:
+            df: Processed DataFrame with cleaned_text column
+            config: Feature engineering configuration
+            
+        Returns:
+            Tuple of (feature_matrix, feature_names, fitted_extractor)
+        """
+        try:
+            print("Starting feature extraction...")
+            
+            # Check if cleaned_text column exists
+            if 'cleaned_text' not in df.columns:
+                raise ValueError("cleaned_text column not found. Run process_data first.")
+            
+            if 'sentiment' not in df.columns:
+                raise ValueError("sentiment column not found.")
+            
+            # Extract features
+            feature_matrix, feature_names, extractor = feature_extraction(
+                df, 
+                text_column='cleaned_text',
+                target_column='sentiment',
+                config=config
+            )
+            
+            print(f"Feature extraction completed: {feature_matrix.shape}")
+            print(f"Number of features: {len(feature_names)}")
+            
+            # Save feature extractor to S3
+            extractor_filename = f"feature_extractor_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.pkl"
+            save_success = extractor.save_to_s3(extractor_filename)
+            
+            if save_success:
+                print(f"Feature extractor saved to S3: {extractor_filename}")
+            else:
+                print("Warning: Failed to save feature extractor to S3")
+            
+            return feature_matrix, feature_names, extractor
+            
+        except Exception as e:
+            print(f"Error in feature extraction: {e}")
+            raise
+    
     def upload_processed_data(self, df, filename):
         """Upload processed data to S3"""
         try:
@@ -111,8 +159,14 @@ if __name__ == "__main__":
         # Upload processed data
         etl.upload_processed_data(processed_data, "processed_sentiment_data.json")
         
+        # Extract features
+        feature_matrix, feature_names, extractor = etl.feature_extraction(processed_data)
+        
         print("ETL pipeline completed successfully!")
         print("Sample processed data:")
         print(processed_data[['text', 'cleaned_text', 'sentiment']].head())
+        print(f"\nFeature matrix shape: {feature_matrix.shape}")
+        print(f"Number of features: {len(feature_names)}")
+        print(f"Sample features: {feature_names[:10]}")
     else:
         print("Failed to download raw data")
