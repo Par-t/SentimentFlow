@@ -14,8 +14,14 @@ CONFIG_DIR = PROJECT_ROOT / 'config'
 MODELS_DIR = PROJECT_ROOT / 'models'
 
 # AWS Configuration
+# These will work with AWS CLI authentication (aws configure)
+# boto3 will automatically pick up credentials from AWS CLI config
 AWS_REGION = 'us-east-1'
-S3_BUCKET_NAME = 'par-ty-sentiment-analysis-pipeline'  # Replace with your bucket
+S3_BUCKET_NAME = 'par-ty-sentiment-analysis-pipeline'  # Your S3 bucket name
+
+# Optional: Override with environment variables if needed
+AWS_REGION = os.getenv('AWS_DEFAULT_REGION', AWS_REGION)
+S3_BUCKET_NAME = os.getenv('S3_BUCKET_NAME', S3_BUCKET_NAME)
 
 # Data Configuration
 RAW_DATA_PATH = 'raw-data/'

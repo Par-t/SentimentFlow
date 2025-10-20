@@ -82,7 +82,7 @@ sudo ./aws/install
 
 #### 8. Configure AWS Credentials
 
-**Option A: Using AWS CLI (Recommended)**
+**Using AWS CLI (Recommended)**
 ```bash
 aws configure
 ```
@@ -92,26 +92,19 @@ Enter your:
 - Default region (e.g., `us-east-1`)
 - Default output format (e.g., `json`)
 
-**Option B: Environment Variables**
-Add AWS credentials to your virtual environment activation script:
-
-**Windows (`venv\Scripts\activate.bat`):**
-```batch
-set AWS_ACCESS_KEY_ID=your_access_key_here
-set AWS_SECRET_ACCESS_KEY=your_secret_key_here
-set AWS_DEFAULT_REGION=us-east-1
-```
-
-**macOS/Linux (`venv/bin/activate`):**
+**Verify AWS CLI Setup:**
 ```bash
-export AWS_ACCESS_KEY_ID=your_access_key_here
-export AWS_SECRET_ACCESS_KEY=your_secret_key_here
-export AWS_DEFAULT_REGION=us-east-1
+aws s3 ls
 ```
 
-#### 9. Update Configuration
+**Test AWS Authentication:**
+```bash
+python test_aws_cli_auth.py
+```
 
-Edit `config/config.py` to use your S3 bucket:
+#### 9. Update Configuration (Optional)
+
+If you want to use a different bucket name, edit `config/config.py`:
 ```python
 S3_BUCKET_NAME = 'your-bucket-name-here'  # Replace with your bucket name
 AWS_REGION = 'your-region-here'           # Replace with your region
@@ -121,6 +114,93 @@ AWS_REGION = 'your-region-here'           # Replace with your region
 ```bash
 aws s3 ls s3://your-bucket-name-here
 ```
+
+---
+
+## 🧪 Testing the Pipeline
+
+Once you've completed the setup, you can test the **data preprocessing pipeline** to ensure everything is working correctly.
+
+### What the Pipeline Currently Does
+
+The current implementation focuses on the **data foundation** of the MLOps pipeline:
+
+1. **📤 Data Ingestion** - Upload/download data to/from S3
+2. **🔄 ETL Processing** - Clean and preprocess text data using NLP
+3. **💾 Data Storage** - Organize data in S3 bucket structure
+4. **✅ Validation** - Verify end-to-end data flow works correctly
+
+### Run the Complete Test Suite
+```bash
+python run_tests.py
+```
+
+This will run a comprehensive test that includes:
+1. **Sample Data Creation** - Creates test sentiment data (100 records)
+2. **Data Ingestion** - Tests S3 upload/download functionality  
+3. **ETL Pipeline** - Tests text cleaning and preprocessing
+4. **End-to-End Flow** - Tests complete pipeline from raw data to processed data
+
+### Run Individual Tests
+
+**Test Complete End-to-End Pipeline:**
+```bash
+python src/test_end_to_end.py
+```
+Tests: Raw data → S3 upload → Download → Text cleaning → S3 upload → Verification
+
+**Test Data Ingestion Only:**
+```bash
+python src/test_data_pipeline.py
+```
+Tests: Sample data creation → S3 upload → Download → Verification
+
+### Expected Test Output
+If everything is working correctly, you should see:
+- ✅ Sample data creation successful
+- ✅ Data ingestion to S3 successful  
+- ✅ ETL processing successful (text cleaning, stopword removal, lemmatization)
+- ✅ End-to-end pipeline test completed
+- 📊 Data shape verification (original vs processed)
+
+### Sample Test Output
+```
+=== Testing End-to-End Data Pipeline ===
+
+1. Testing data ingestion...
+✅ Data ingestion successful
+
+2. Testing ETL pipeline...
+✅ ETL pipeline successful
+
+3. Verifying results...
+Original data shape: (4, 2)
+Processed data shape: (4, 5)
+Sample processed data:
+                           text                    cleaned_text  sentiment
+0  I love this product! It's amazing.  love product amazing          1
+1  Terrible quality, waste of money.  terrible quality waste money   0
+
+✅ End-to-end pipeline test completed successfully!
+```
+
+### What Gets Created in S3
+After running tests, your S3 bucket will contain:
+```
+s3://your-bucket/
+├── raw-data/
+│   ├── test_pipeline_data.json          # Raw test data
+│   └── sample_sentiment_data.json       # Sample data from ingestion test
+└── processed-data/
+    ├── test_processed_data.json         # Cleaned and processed data
+    └── processed_sample_sentiment_data.json
+```
+
+### Troubleshooting Tests
+- **AWS Connection Issues**: Verify your credentials and bucket permissions
+- **Import Errors**: Make sure your virtual environment is activated
+- **S3 Permission Errors**: Ensure your AWS user has S3 read/write permissions
+- **Empty Results**: Check that your S3 bucket name in `config/config.py` is correct
 
 ### 🏗️ Project Structure
 
@@ -179,12 +259,26 @@ Key configuration is managed in `config/config.py`:
 
 ---
 
-## 📝 Next Steps
+## 📝 Current Status & Next Steps
 
-- [ ] Data pipeline testing
-- [ ] Model training workflows
-- [ ] MLflow experiment tracking
-- [ ] Model deployment guides
+### ✅ **Completed (Data Foundation)**
+- [x] **Setup and Installation** - Complete
+- [x] **AWS S3 Integration** - Complete
+- [x] **Data Ingestion Pipeline** - Complete (upload/download to S3)
+- [x] **ETL Pipeline** - Complete (text cleaning, preprocessing)
+- [x] **Data Validation** - Complete (end-to-end testing)
+- [x] **Testing Framework** - Complete
+
+### 🔄 **Next Phase (Model Training)**
+- [ ] **Feature Engineering** - TF-IDF vectorization, feature selection
+- [ ] **Model Training** - Implement sentiment classification models
+- [ ] **Model Evaluation** - Cross-validation, metrics, comparison
+- [ ] **MLflow Integration** - Experiment tracking and model versioning
+
+### 🚀 **Future Phase (Production)**
+- [ ] **Model Deployment** - API endpoints, inference pipeline
+- [ ] **Monitoring** - Model performance tracking
+- [ ] **CI/CD Pipeline** - Automated training and deployment
 
 ---
 

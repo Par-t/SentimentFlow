@@ -13,7 +13,7 @@ from pathlib import Path
 from data_ingestion import DataIngestion
 from etl_pipeline import ETLPipeline
 from training_config import DATA_CONFIG, DEFAULT_CONFIG
-from config.config import S3_BUCKET_NAME
+from config import S3_BUCKET_NAME
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)

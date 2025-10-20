@@ -17,7 +17,7 @@ import boto3
 from datetime import datetime
 
 from data_ingestion import DataIngestion
-from config.config import S3_BUCKET_NAME, AWS_REGION, DATA_DIR
+from config import S3_BUCKET_NAME, AWS_REGION, DATA_DIR
 
 class ETLPipeline:
     def __init__(self, bucket_name=None):

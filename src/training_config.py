@@ -4,7 +4,7 @@ Training Configuration Module for MLOps Sentiment Analysis Pipeline
 from dataclasses import dataclass
 from typing import Dict, List, Any, Tuple
 import os
-from config.config import S3_BUCKET_NAME, AWS_REGION, RANDOM_STATE, TEST_SIZE, VALIDATION_SIZE
+from config import S3_BUCKET_NAME, AWS_REGION, RANDOM_STATE, TEST_SIZE, VALIDATION_SIZE
 
 
 @dataclass
