@@ -1,8 +1,8 @@
 import sys
 from pathlib import Path
-
-# Add directories to Python path for imports
 PROJECT_ROOT = Path(__file__).parent.parent
+
+# Add directories to Python path for i
 sys.path.append(str(PROJECT_ROOT / 'src'))
 sys.path.append(str(PROJECT_ROOT / 'config'))
 sys.path.append(str(PROJECT_ROOT / 'notebooks'))

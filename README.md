@@ -117,6 +117,30 @@ aws s3 ls s3://your-bucket-name-here
 
 ---
 
+## 🚀 Running the Pipeline
+
+### 1. Upload Dataset to S3
+```bash
+aws s3 cp {local_dataset_path} s3://{bucket_name}/raw-data/{dataset_filename}
+```
+
+### 2. Run Pipeline
+```bash
+python main.py --dataset {dataset_filename} --label-column {label_column_name} --query-column {text_column_name}
+```
+
+**Example:**
+```bash
+aws s3 cp data/sentimentdataset.csv s3://my-bucket/raw-data/sentimentdataset.csv
+python main.py --dataset sentimentdataset.csv --label-column sentiment --query-column text
+```
+
+**Optional parameters:**
+- `--bucket` - S3 bucket name
+- `--output-prefix` - Output file prefix
+
+---
+
 ## 🧪 Testing the Pipeline
 
 Once you've completed the setup, you can test the **data preprocessing pipeline** to ensure everything is working correctly.
