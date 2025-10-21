@@ -62,8 +62,16 @@ class SimpleTracker:
             tracking[dataset_name][str(exp_id)] = {
                 'created_at': datetime.now().isoformat(),
                 'processed_data_file': None,
+                'train_split': None,
+                'test_split': None,
+                'val_split': None,
+                'train_features': None,
+                'test_features': None,
+                'val_features': None,
                 'feature_extractor': None,
-                'label_mapping': None
+                'label_mapping': None,
+                'split_params': None,
+                'feature_params': None
             }
         
         # Add the artifact
@@ -82,3 +90,27 @@ class SimpleTracker:
         """List all tracked datasets"""
         tracking = self.load_tracking()
         return list(tracking.keys())
+    
+    def get_split_params(self, dataset_name: str, exp_id: str = "0") -> Dict:
+        """Get split parameters for reproducing the same train/test/val split"""
+        tracking = self.load_tracking()
+        try:
+            split_params_str = tracking[dataset_name][exp_id].get('split_params')
+            if split_params_str:
+                import json
+                return json.loads(split_params_str)
+            return {}
+        except:
+            return {}
+    
+    def get_feature_params(self, dataset_name: str, exp_id: str = "0") -> Dict:
+        """Get feature extraction parameters for reproducing the same features"""
+        tracking = self.load_tracking()
+        try:
+            feature_params_str = tracking[dataset_name][exp_id].get('feature_params')
+            if feature_params_str:
+                import json
+                return json.loads(feature_params_str)
+            return {}
+        except:
+            return {}

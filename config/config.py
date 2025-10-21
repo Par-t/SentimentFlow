@@ -31,8 +31,9 @@ ARTIFACTS_PATH = 'artifacts/'
 
 # Model Configuration
 RANDOM_STATE = 42
+TRAIN_SIZE = 0.7
 TEST_SIZE = 0.2
-VALIDATION_SIZE = 0.2
+VAL_SIZE = 0.1
 
 # Logging Configuration
 LOG_LEVEL = 'INFO'

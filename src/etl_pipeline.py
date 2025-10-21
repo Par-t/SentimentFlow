@@ -16,10 +16,11 @@ import json
 import boto3
 from datetime import datetime
 from charset_normalizer import from_bytes
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
+from sklearn.model_selection import train_test_split
 
 from data_ingestion import DataIngestion
-from config import S3_BUCKET_NAME, AWS_REGION, DATA_DIR
+from config import S3_BUCKET_NAME, AWS_REGION, DATA_DIR, TRAIN_SIZE, TEST_SIZE, VAL_SIZE, RANDOM_STATE
 from feature_extraction import feature_extraction, FeatureExtractor
 
 class ETLPipeline:
@@ -48,6 +49,12 @@ class ETLPipeline:
         
         # Dynamic label mapping - will be created based on unique values in dataset
         self.label_mapping = {}
+        
+        # Split configuration
+        self.train_size = TRAIN_SIZE
+        self.test_size = TEST_SIZE
+        self.val_size = VAL_SIZE
+        self.random_state = RANDOM_STATE
     
     def clean_text(self, text):
         """Clean and preprocess text"""
@@ -223,59 +230,263 @@ class ETLPipeline:
         print(f"Enhanced processing completed. Final dataset: {len(df)} samples")
         return df
     
-    def feature_extraction(self, df, config=None, tracker=None, dataset_name=None):
+    def save_processed_data(self, df: pd.DataFrame, filename: str) -> bool:
+        """Save processed data to S3 processed_data folder as CSV"""
+        try:
+            # Convert to CSV format
+            csv_data = df.to_csv(index=False)
+            key = f"processed_data/{filename}"
+            self.s3_client.put_object(
+                Bucket=self.bucket_name,
+                Key=key,
+                Body=csv_data,
+                ContentType='text/csv'
+            )
+            print(f"Processed data saved to S3: {filename}")
+            return True
+        except Exception as e:
+            print(f"Error saving processed data: {e}")
+            return False
+    
+    def split_data(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        """Split processed data into train/test/validation sets"""
+        print(f"Splitting data: {self.train_size:.1%} train, {self.test_size:.1%} test, {self.val_size:.1%} validation")
+        
+        # First split: separate train from test+val
+        train_df, temp_df = train_test_split(
+            df, 
+            test_size=(self.test_size + self.val_size),
+            random_state=self.random_state,
+            stratify=df['sentiment'] if 'sentiment' in df.columns else None
+        )
+        
+        # Second split: separate test from validation
+        test_df, val_df = train_test_split(
+            temp_df,
+            test_size=(self.val_size / (self.test_size + self.val_size)),
+            random_state=self.random_state,
+            stratify=temp_df['sentiment'] if 'sentiment' in temp_df.columns else None
+        )
+        
+        print(f"Data split completed:")
+        print(f"  Train: {len(train_df)} samples")
+        print(f"  Test: {len(test_df)} samples")
+        print(f"  Validation: {len(val_df)} samples")
+        
+        return train_df, test_df, val_df
+    
+    def reproduce_split(self, df: pd.DataFrame, split_params: Dict) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        """Reproduce the exact same train/test/val split using stored parameters"""
+        print(f"Reproducing split with parameters: {split_params}")
+        
+        # Use stored parameters
+        train_size = split_params.get('train_size', self.train_size)
+        test_size = split_params.get('test_size', self.test_size)
+        val_size = split_params.get('val_size', self.val_size)
+        random_state = split_params.get('random_state', self.random_state)
+        
+        # First split: separate train from test+val
+        train_df, temp_df = train_test_split(
+            df, 
+            test_size=(test_size + val_size),
+            random_state=random_state,
+            stratify=df['sentiment'] if 'sentiment' in df.columns else None
+        )
+        
+        # Second split: separate test from validation
+        test_df, val_df = train_test_split(
+            temp_df,
+            test_size=(val_size / (test_size + val_size)),
+            random_state=random_state,
+            stratify=temp_df['sentiment'] if 'sentiment' in temp_df.columns else None
+        )
+        
+        print(f"Reproduced split:")
+        print(f"  Train: {len(train_df)} samples")
+        print(f"  Test: {len(test_df)} samples")
+        print(f"  Validation: {len(val_df)} samples")
+        
+        return train_df, test_df, val_df
+    
+    def save_data_splits(self, train_df: pd.DataFrame, test_df: pd.DataFrame, val_df: pd.DataFrame, 
+                        dataset_name: str, tracker=None) -> bool:
+        """Save train/test/validation splits to S3 as CSV files"""
+        try:
+            dataset_base = dataset_name.replace('.csv', '').replace('.json', '')
+            timestamp = pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')
+            
+            # Save train split as CSV
+            train_filename = f"train_{dataset_base}_{timestamp}.csv"
+            train_csv = train_df.to_csv(index=False)
+            self.s3_client.put_object(
+                Bucket=self.bucket_name,
+                Key=f"data_splits/train/{train_filename}",
+                Body=train_csv,
+                ContentType='text/csv'
+            )
+            
+            # Save test split as CSV
+            test_filename = f"test_{dataset_base}_{timestamp}.csv"
+            test_csv = test_df.to_csv(index=False)
+            self.s3_client.put_object(
+                Bucket=self.bucket_name,
+                Key=f"data_splits/test/{test_filename}",
+                Body=test_csv,
+                ContentType='text/csv'
+            )
+            
+            # Save validation split as CSV
+            val_filename = f"val_{dataset_base}_{timestamp}.csv"
+            val_csv = val_df.to_csv(index=False)
+            self.s3_client.put_object(
+                Bucket=self.bucket_name,
+                Key=f"data_splits/val/{val_filename}",
+                Body=val_csv,
+                ContentType='text/csv'
+            )
+            
+            print(f"Data splits saved to S3:")
+            print(f"  Train: {train_filename}")
+            print(f"  Test: {test_filename}")
+            print(f"  Validation: {val_filename}")
+            
+            # Track the split files and parameters
+            if tracker:
+                tracker.add_artifact(dataset_name, "train_split", train_filename)
+                tracker.add_artifact(dataset_name, "test_split", test_filename)
+                tracker.add_artifact(dataset_name, "val_split", val_filename)
+                
+                # Save split parameters for reproducibility
+                split_params = {
+                    "train_size": self.train_size,
+                    "test_size": self.test_size,
+                    "val_size": self.val_size,
+                    "random_state": self.random_state,
+                    "train_samples": len(train_df),
+                    "test_samples": len(test_df),
+                    "val_samples": len(val_df)
+                }
+                tracker.add_artifact(dataset_name, "split_params", json.dumps(split_params))
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error saving data splits: {e}")
+            return False
+    
+    def extract_features_for_splits(self, train_df: pd.DataFrame, test_df: pd.DataFrame, val_df: pd.DataFrame, 
+                                   config=None, tracker=None, dataset_name=None):
         """
-        Extract features from processed text data
+        Extract features for train/test/validation splits
+        Fit feature extractor only on training data, then transform all splits
         
         Args:
-            df: Processed DataFrame with cleaned_text column
+            train_df: Training DataFrame
+            test_df: Test DataFrame  
+            val_df: Validation DataFrame
             config: Feature engineering configuration
+            tracker: SimpleTracker instance
+            dataset_name: Name of the dataset
             
         Returns:
-            Tuple of (feature_matrix, feature_names, fitted_extractor)
+            Tuple of (train_features, test_features, val_features, feature_names, fitted_extractor)
         """
         try:
-            print("Starting feature extraction...")
+            print("Starting feature extraction for data splits...")
             
-            # Check if cleaned_text column exists
-            if 'cleaned_text' not in df.columns:
-                raise ValueError("cleaned_text column not found. Run process_data first.")
+            # Check if cleaned_text column exists in all splits
+            for split_name, df in [("train", train_df), ("test", test_df), ("val", val_df)]:
+                if 'cleaned_text' not in df.columns:
+                    raise ValueError(f"cleaned_text column not found in {split_name} data.")
+                if 'sentiment' not in df.columns:
+                    raise ValueError(f"sentiment column not found in {split_name} data.")
             
-            if 'sentiment' not in df.columns:
-                raise ValueError("sentiment column not found.")
-            
-            # Extract features
-            feature_matrix, feature_names, extractor = feature_extraction(
-                df, 
+            # Fit feature extractor ONLY on training data
+            print("Fitting feature extractor on training data...")
+            train_feature_matrix, feature_names, extractor = feature_extraction(
+                train_df, 
                 text_column='cleaned_text',
                 target_column='sentiment',
                 config=config
             )
             
-            print(f"Feature extraction completed: {feature_matrix.shape}")
-            print(f"Number of features: {len(feature_names)}")
+            print(f"Feature extractor fitted on training data: {train_feature_matrix.shape}")
             
-            # Save feature extractor to S3 with dataset name
-            if dataset_name:
-                dataset_base = dataset_name.replace('.csv', '').replace('.json', '')
-                extractor_filename = f"feature_extractor_{dataset_base}_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.pkl"
-            else:
-                extractor_filename = f"feature_extractor_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.pkl"
+            # Transform test and validation data using the fitted extractor
+            print("Transforming test and validation data...")
+            test_feature_matrix = extractor.transform(test_df['cleaned_text'])
+            val_feature_matrix = extractor.transform(val_df['cleaned_text'])
+            
+            print(f"Feature extraction completed:")
+            print(f"  Train features: {train_feature_matrix.shape}")
+            print(f"  Test features: {test_feature_matrix.shape}")
+            print(f"  Validation features: {val_feature_matrix.shape}")
+            print(f"  Number of features: {len(feature_names)}")
+            
+            # Save feature matrices to S3
+            dataset_base = dataset_name.replace('.csv', '').replace('.json', '')
+            timestamp = pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')
+            
+            # Save train features
+            train_features_filename = f"train_features_{dataset_base}_{timestamp}.pkl"
+            self.save_feature_matrix(train_feature_matrix, f"features/train/{train_features_filename}")
+            
+            # Save test features  
+            test_features_filename = f"test_features_{dataset_base}_{timestamp}.pkl"
+            self.save_feature_matrix(test_feature_matrix, f"features/test/{test_features_filename}")
+            
+            # Save validation features
+            val_features_filename = f"val_features_{dataset_base}_{timestamp}.pkl"
+            self.save_feature_matrix(val_feature_matrix, f"features/val/{val_features_filename}")
+            
+            # Save feature extractor to S3
+            extractor_filename = f"feature_extractor_{dataset_base}_{timestamp}.pkl"
             save_success = extractor.save_to_s3(extractor_filename)
             
             if save_success:
                 print(f"Feature extractor saved to S3: {extractor_filename}")
-                # Track the feature extractor
+                # Track all artifacts and feature extraction parameters
                 if tracker and dataset_name:
                     tracker.add_artifact(dataset_name, "feature_extractor", extractor_filename)
+                    tracker.add_artifact(dataset_name, "train_features", train_features_filename)
+                    tracker.add_artifact(dataset_name, "test_features", test_features_filename)
+                    tracker.add_artifact(dataset_name, "val_features", val_features_filename)
+                    
+                    # Track feature extraction parameters for reproducibility
+                    feature_params = {
+                        "config": extractor.config,
+                        "train_features_shape": train_feature_matrix.shape,
+                        "test_features_shape": test_feature_matrix.shape,
+                        "val_features_shape": val_feature_matrix.shape,
+                        "num_features": len(feature_names),
+                        "feature_extractor_filename": extractor_filename
+                    }
+                    tracker.add_artifact(dataset_name, "feature_params", json.dumps(feature_params, default=str))
             else:
                 print("Warning: Failed to save feature extractor to S3")
             
-            return feature_matrix, feature_names, extractor
+            return train_feature_matrix, test_feature_matrix, val_feature_matrix, feature_names, extractor
             
         except Exception as e:
             print(f"Error in feature extraction: {e}")
             raise
+    
+    def save_feature_matrix(self, feature_matrix, s3_key: str) -> bool:
+        """Save feature matrix to S3 as pickle"""
+        try:
+            import pickle
+            pickle_data = pickle.dumps(feature_matrix)
+            self.s3_client.put_object(
+                Bucket=self.bucket_name,
+                Key=s3_key,
+                Body=pickle_data,
+                ContentType='application/octet-stream'
+            )
+            print(f"Feature matrix saved to S3: {s3_key}")
+            return True
+        except Exception as e:
+            print(f"Error saving feature matrix: {e}")
+            return False
     
     def load_csv_with_encoding_detection(self, file_path: str) -> pd.DataFrame:
         """Load CSV file with automatic encoding detection"""
@@ -303,21 +514,8 @@ class ETLPipeline:
                 return df
     
     def upload_processed_data(self, df, filename):
-        """Upload processed data to S3"""
-        try:
-            data_json = df.to_json(orient='records')
-            key = f"processed-data/{filename}"
-            self.s3_client.put_object(
-                Bucket=self.bucket_name,
-                Key=key,
-                Body=data_json,
-                ContentType='application/json'
-            )
-            print(f"Successfully uploaded processed data: {filename}")
-            return True
-        except Exception as e:
-            print(f"Error uploading processed data: {e}")
-            return False
+        """Upload processed data to S3 (legacy method - use save_processed_data instead)"""
+        return self.save_processed_data(df, filename)
 
 # Test the ETL pipeline
 if __name__ == "__main__":

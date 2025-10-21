@@ -134,35 +134,49 @@ Examples:
         print(f"✅ ETL processing completed")
         print(f"   Processed {len(processed_data)} rows")
         
-        # Step 4: Feature extraction
-        print(f"\n🧠 Step 4: Extracting features...")
+        # Step 4: Save processed data and split into train/test/val
+        print(f"\n📊 Step 4: Saving processed data and creating train/test/val splits...")
         
-        feature_matrix, feature_names, extractor = etl.feature_extraction(processed_data, tracker=tracker, dataset_name=args.dataset)
+        # Save processed data
+        dataset_base = args.dataset.replace('.csv', '').replace('.json', '')
+        processed_filename = f"{args.output_prefix}_processed_{dataset_base}.csv"
+        save_success = etl.save_processed_data(processed_data, processed_filename)
         
-        if feature_matrix is None:
-            print("❌ Feature extraction failed")
-            return 1
-        
-        print(f"✅ Feature extraction completed")
-        print(f"   Feature matrix shape: {feature_matrix.shape}")
-        print(f"   Number of features: {len(feature_names)}")
-        
-        # Step 5: Upload processed data and artifacts
-        print(f"\n📤 Step 5: Uploading results to S3...")
-        
-        # Upload processed data
-        processed_filename = f"{args.output_prefix}_processed_{args.dataset}"
-        upload_success = etl.upload_processed_data(processed_data, processed_filename)
-        
-        if not upload_success:
-            print("❌ Failed to upload processed data")
+        if not save_success:
+            print("❌ Failed to save processed data")
             return 1
         
         # Track the processed data file
         tracker.add_artifact(args.dataset, "processed_data_file", processed_filename)
         
-        print(f"✅ Results uploaded successfully")
-        print(f"   Processed data: {processed_filename}")
+        # Split data into train/test/validation
+        train_df, test_df, val_df = etl.split_data(processed_data)
+        
+        # Save data splits
+        splits_saved = etl.save_data_splits(train_df, test_df, val_df, args.dataset, tracker)
+        
+        if not splits_saved:
+            print("❌ Failed to save data splits")
+            return 1
+        
+        print(f"✅ Data splits created and saved successfully")
+        
+        # Step 5: Feature extraction on splits
+        print(f"\n🧠 Step 5: Extracting features from data splits...")
+        
+        train_features, test_features, val_features, feature_names, extractor = etl.extract_features_for_splits(
+            train_df, test_df, val_df, tracker=tracker, dataset_name=args.dataset
+        )
+        
+        if train_features is None:
+            print("❌ Feature extraction failed")
+            return 1
+        
+        print(f"✅ Feature extraction completed")
+        print(f"   Train features: {train_features.shape}")
+        print(f"   Test features: {test_features.shape}")
+        print(f"   Validation features: {val_features.shape}")
+        print(f"   Number of features: {len(feature_names)}")
         
         # Step 6: Summary and next steps
         print(f"\n🎉 Pipeline completed successfully!")
@@ -170,13 +184,19 @@ Examples:
         print("📊 Pipeline Summary:")
         print(f"   • Original dataset: {len(raw_data)} rows")
         print(f"   • Processed dataset: {len(processed_data)} rows")
+        print(f"   • Train split: {len(train_df)} rows")
+        print(f"   • Test split: {len(test_df)} rows")
+        print(f"   • Validation split: {len(val_df)} rows")
         print(f"   • Features extracted: {len(feature_names)}")
-        print(f"   • Feature matrix shape: {feature_matrix.shape}")
+        print(f"   • Train features: {train_features.shape}")
+        print(f"   • Test features: {test_features.shape}")
+        print(f"   • Validation features: {val_features.shape}")
         print("=" * 60)
         print("\n💡 Next Steps:")
-        print("   • Use the processed data for model training")
-        print("   • Feature matrix is ready for ML algorithms")
+        print("   • Use train/test/val features for model training and evaluation")
+        print("   • Feature extractor fitted only on training data (no data leakage)")
         print("   • All artifacts saved to S3 for reproducibility")
+        print("   • Ready for model training pipeline")
         print("=" * 60)
         
         return 0
