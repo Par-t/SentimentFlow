@@ -145,13 +145,13 @@ This will run a comprehensive test that includes:
 
 **Test Complete End-to-End Pipeline:**
 ```bash
-python src/test_end_to_end.py
+python tests/test_end_to_end.py
 ```
-Tests: Raw data → S3 upload → Download → Text cleaning → S3 upload → Verification
+Tests: Raw data → S3 upload → Download → Text cleaning → Feature extraction → S3 upload → Verification
 
 **Test Data Ingestion Only:**
 ```bash
-python src/test_data_pipeline.py
+python tests/test_data_pipeline.py
 ```
 Tests: Sample data creation → S3 upload → Download → Verification
 
@@ -160,8 +160,9 @@ If everything is working correctly, you should see:
 - ✅ Sample data creation successful
 - ✅ Data ingestion to S3 successful  
 - ✅ ETL processing successful (text cleaning, stopword removal, lemmatization)
+- ✅ Feature extraction successful (TF-IDF vectorization, feature selection)
 - ✅ End-to-end pipeline test completed
-- 📊 Data shape verification (original vs processed)
+- 📊 Data shape verification (original vs processed vs feature matrix)
 
 ### Sample Test Output
 ```
@@ -173,13 +174,20 @@ If everything is working correctly, you should see:
 2. Testing ETL pipeline...
 ✅ ETL pipeline successful
 
-3. Verifying results...
+3. Testing feature extraction...
+✅ Feature extraction successful
+
+4. Verifying results...
 Original data shape: (4, 2)
 Processed data shape: (4, 5)
+Feature matrix shape: (4, 15)
+Number of features: 15
 Sample processed data:
                            text                    cleaned_text  sentiment
 0  I love this product! It's amazing.  love product amazing          1
 1  Terrible quality, waste of money.  terrible quality waste money   0
+
+Sample features: ['amazing', 'bad', 'experience', 'good', 'love', ...]
 
 ✅ End-to-end pipeline test completed successfully!
 ```
@@ -191,9 +199,11 @@ s3://your-bucket/
 ├── raw-data/
 │   ├── test_pipeline_data.json          # Raw test data
 │   └── sample_sentiment_data.json       # Sample data from ingestion test
-└── processed-data/
-    ├── test_processed_data.json         # Cleaned and processed data
-    └── processed_sample_sentiment_data.json
+├── processed-data/
+│   ├── test_processed_data.json         # Cleaned and processed data
+│   └── processed_sample_sentiment_data.json
+└── artifacts/
+    └── feature_extractor_YYYYMMDD_HHMMSS.pkl  # Fitted TF-IDF vectorizer
 ```
 
 ### Troubleshooting Tests
@@ -209,11 +219,14 @@ SentimentFlow/
 ├── src/                    # Source code
 │   ├── data_ingestion.py   # S3 data upload/download
 │   ├── data_loader.py      # Data loading and validation
-│   ├── etl_pipeline.py     # Data preprocessing
+│   ├── etl_pipeline.py     # Data preprocessing and feature extraction
+│   ├── feature_extraction.py # TF-IDF vectorization and feature selection
 │   ├── mlflow_utils.py     # MLflow integration
 │   └── training_config.py  # Configuration management
-├── config/                 # Configuration files
 ├── tests/                  # Test files
+│   ├── test_end_to_end.py  # Complete pipeline test
+│   └── test_data_pipeline.py # Data ingestion test
+├── config/                 # Configuration files
 ├── notebooks/              # Jupyter notebooks
 ├── requirements.txt        # Python dependencies
 └── README.md              # This file
