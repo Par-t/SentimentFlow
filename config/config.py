@@ -30,7 +30,7 @@ MODELS_PATH = 'models/'
 ARTIFACTS_PATH = 'artifacts/'
 
 # Model Configuration
-RANDOM_STATE = 42
+RANDOM_STATE = 69
 TRAIN_SIZE = 0.7
 TEST_SIZE = 0.2
 VAL_SIZE = 0.1

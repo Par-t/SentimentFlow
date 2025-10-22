@@ -57,6 +57,14 @@ class SimpleTracker:
         # Get current experiment ID
         exp_id = tracking[dataset_name]['exp_counter']
         
+        # Check if we need to create a new experiment by comparing parameters
+        if str(exp_id) in tracking[dataset_name]:
+            if self._should_create_new_experiment(tracking[dataset_name], str(exp_id)):
+                # Increment counter for new experiment
+                tracking[dataset_name]['exp_counter'] += 1
+                exp_id = tracking[dataset_name]['exp_counter']
+                print(f"🆕 Creating new experiment {exp_id} due to parameter changes")
+        
         # Initialize experiment entry if it doesn't exist
         if str(exp_id) not in tracking[dataset_name]:
             tracking[dataset_name][str(exp_id)] = {
@@ -81,6 +89,45 @@ class SimpleTracker:
         self.save_tracking(tracking)
         print(f"📝 Tracked {artifact_type}: {filename}")
     
+    def _should_create_new_experiment(self, dataset_tracking: dict, current_exp_id: str) -> bool:
+        """Check if current parameters differ from the last experiment"""
+        try:
+            # Get the last experiment's parameters
+            last_exp = dataset_tracking[current_exp_id]
+            
+            # Load current config parameters
+            from config import TRAIN_SIZE, TEST_SIZE, VAL_SIZE, RANDOM_STATE
+            
+            # Check if split_params exist in the last experiment
+            if last_exp.get('split_params'):
+                last_split_params_str = last_exp['split_params']
+                last_split_params = json.loads(last_split_params_str)
+                
+                # Compare with current config values
+                if (last_split_params.get('train_size') != TRAIN_SIZE or
+                    last_split_params.get('test_size') != TEST_SIZE or
+                    last_split_params.get('val_size') != VAL_SIZE or
+                    last_split_params.get('random_state') != RANDOM_STATE):
+                    
+                    print(f"🔄 Split parameters changed:")
+                    print(f"  Last: {last_split_params}")
+                    print(f"  Current: train_size={TRAIN_SIZE}, test_size={TEST_SIZE}, val_size={VAL_SIZE}, random_state={RANDOM_STATE}")
+                    return True
+            
+            # Check feature_params if they exist
+            if last_exp.get('feature_params'):
+                # For now, we'll assume feature params haven't changed
+                # This could be enhanced to compare feature extraction config
+                pass
+            
+            # If we get here, parameters are the same
+            return False
+            
+        except Exception as e:
+            print(f"⚠️ Error comparing parameters: {e}")
+            # If there's an error comparing, assume new experiment
+            return True
+    
     def get_dataset_experiments(self, dataset_name: str) -> Dict:
         """Get all experiments for a dataset"""
         tracking = self.load_tracking()
@@ -97,7 +144,6 @@ class SimpleTracker:
         try:
             split_params_str = tracking[dataset_name][exp_id].get('split_params')
             if split_params_str:
-                import json
                 return json.loads(split_params_str)
             return {}
         except:
@@ -109,7 +155,6 @@ class SimpleTracker:
         try:
             feature_params_str = tracking[dataset_name][exp_id].get('feature_params')
             if feature_params_str:
-                import json
                 return json.loads(feature_params_str)
             return {}
         except:
